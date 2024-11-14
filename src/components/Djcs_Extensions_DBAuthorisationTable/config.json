@@ -1,0 +1,37 @@
+{
+  "name": "Djcs_Extensions_DBAuthorisationTable",
+  "label": "Disbursement authorisation custom table",
+  "description": "Custom table to show master detail",
+  "organization": "Djcs",
+  "version": "1.0.0",
+  "library": "Extensions",
+  "allowedApplications": [],
+  "componentKey": "Djcs_Extensions_DBAuthorisationTable",
+  "type": "Template",
+  "subtype": "FORM",
+  "icon": "DefaultForm.svg",
+    "properties": [
+     {
+        "name": "heading",
+        "label": "Label",
+        "format": "TEXT"
+    },            
+    {      
+      "name": "embedDataPage",
+      "label": "Choose Embedded Data Page",
+      "format": "TEXT"
+    },    
+    { 
+      "format": "TEXT",     
+      "name": "paginationSize",
+      "label": "Enter pagination size"
+    },
+    {
+      "name": "A",
+      "label": "Region A",
+      "format": "CONTENTPICKER",
+      "addTypeList": ["Fields", "Views"],
+      "allowCreatingGroup": true
+    }
+  ]
+}
