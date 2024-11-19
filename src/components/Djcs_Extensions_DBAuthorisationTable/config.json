@@ -27,6 +27,13 @@
       "label": "Enter pagination size"
     },
     {
+      "format": "DATAPAGE",
+      "name": "disbursementDetailsDataPage",
+      "label": "Choose disbursement details data page",
+      "contextFilterProp": "contextClass",
+      "lookupPathOverride": "viewMetadata.config"
+    },
+    {
       "name": "A",
       "label": "Region A",
       "format": "CONTENTPICKER",

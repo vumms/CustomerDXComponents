@@ -15,6 +15,7 @@ interface DjcsExtensionsDbAuthorisationTableProps extends PConnFieldProps {
   heading: string;
   embedDataPage: string;
   paginationSize: string;
+  disbursementDetailsDataPage: any;
 }
 
 // props passed in combination of props from property panel (config.json) and run time props from Constellation
@@ -22,7 +23,7 @@ interface DjcsExtensionsDbAuthorisationTableProps extends PConnFieldProps {
 function DjcsExtensionsDbAuthorisationTable(props: DjcsExtensionsDbAuthorisationTableProps) {
   // children is hidden from the render, so had to use no-unused-prop-types warning
   /* eslint-disable @typescript-eslint/no-unused-vars */
-  const { NumCols = '1', label, showLabel, getPConnect, heading, children, embedDataPage, paginationSize } = props;
+  const { NumCols = '1', label, showLabel, getPConnect, heading, children, embedDataPage, paginationSize, disbursementDetailsDataPage } = props;
   /* eslint-enable @typescript-eslint/no-unused-vars */
   const propsToUse = { label, showLabel, ...getPConnect().getInheritedProps() };
   const nCols = parseInt(NumCols, 10);
@@ -42,7 +43,10 @@ function DjcsExtensionsDbAuthorisationTable(props: DjcsExtensionsDbAuthorisation
         <Text variant='h2' status={undefined}>
           {heading}
         </Text>        
-        <PreDisbursementAuthorise embedDataPageProp={embedDataPage} pConnectProp={getPConnect} paginationSizeProp={paginationSize}/>
+        <PreDisbursementAuthorise embedDataPageProp={embedDataPage} 
+                                  pConnectProp={getPConnect} 
+                                  paginationSizeProp={paginationSize} 
+                                  disbursementDetailsDataPageProp={disbursementDetailsDataPage}/>
       </FieldGroup>
     
     </StyledDjcsExtensionsDbAuthorisationTableWrapper>

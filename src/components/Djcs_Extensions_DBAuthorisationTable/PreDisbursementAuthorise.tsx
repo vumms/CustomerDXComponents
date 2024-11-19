@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck 
 // Import MUI libraries
 import {
   GridColDef,
@@ -7,7 +7,8 @@ import {
   GridRowSelectionModel,
   GridPreProcessEditCellProps,
   GridCellEditStopParams,
-  GridRowId,
+  GridCallbackDetails,
+  GridRowId,  
   MuiEvent,
 } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
@@ -21,103 +22,101 @@ import {
   Modal,   
   Card,
   CardContent, 
-  TextArea, 
-  Table,
+  TextArea,   
   useModalManager,
   useModalContext, } from '@pega/cosmos-react-core';
 
 // import styling  
-// import { StyledBox } from './styles';
-import { styled } from '@mui/material/styles';
-import StyledPegaExtensionsDBAuthoriseWrapper, {
-  /* StyledTable, */  
-} from './styles';
+import { StyledBox, StyledWrapper } from './styles';
 
 // import core React.JS
 import { useEffect, useState, useCallback, useMemo } from "react";
 
-// import utils
-import { getDisbursementEmbeddedData, getSelectedRows, getUnSelectedRows } from './utils';
+// import functions from utils
+import { getDisbursementEmbeddedData, 
+          getSelectedRows, 
+          getUnSelectedRows, 
+          getDataPageResults, 
+          isEmpty,
+          getDisbursementDetailsDataAsRowData } from './utils';
 
-// TODO move this styling to style.ts
-const StyledBox = styled('div')(({ theme }) => ({
-  height: 400,
-  width: '100%',  
-  '& .MuiDataGrid-cell--editing': {
-    backgroundColor: 'rgb(255,215,115, 0.19)',
-    color: '#1a3e72',
-    '& .MuiInputBase-root': {
-      height: '100%',
-    },
-  },
-  '& .Mui-error': {
-    backgroundColor: 'rgb(255,18,28, 0.1)',
-    color: theme.palette.error.main,
-    ...theme.applyStyles('dark', {
-      backgroundColor: 'rgb(126,10,15, 0)',
-    }),
-  },
-}));
-
+// Props from the config.json and any additional props to be loaded here
 type Props = {
   pConnectProp: any;
   embedDataPageProp: string;
   paginationSizeProp: string;
+  disbursementDetailsDataPageProp: any;
 }
 
-// View more details modal dialog function 
-const ShowViewMoreDetailModal = ( props:any ) => {
-  console.log(props.selectedRowsData);    
+// Modal dialog function for View more details of each row   
+const ShowViewMoreDetailModal = ( props ) => {
+  console.log(props);    
+  const [disbursementDetails, setDisbursementDetails] = useState();  
   const { dismiss } = useModalContext();
+  
+  const columns: GridColDef[] = [
+    { field: 'disbursementId', headerName: 'Disbursement ID', width: 120, editable: false },
+    { field: 'enforcementFee', headerName: 'Enforcement fee', width: 120, editable: false },
+    { field: 'fineAmount', headerName: 'Fine Amount', width: 120, editable: false },
+    { field: 'infringementAmount', headerName: 'Infringement amount', width: 120, editable: false },                               
+    { field: 'obligationNumber', headerName: 'Obligation number', width: 120, editable: false },
+    { field: 'prnAmount', headerName: 'Prn amount', width: 120, editable: false },
+    { field: 'registrationFee', headerName: 'Registration fee', width: 120, editable: false },
+    { field: 'totalPaid', headerName: 'Total Paid', width: 120, editable: false },
+  ];
 
+  // Actions required for the modal dialog
   const actions = useMemo(() => {
     return (
-        <Button
-          onClick={() => {              
-            dismiss();              
-          }}
-        >
+        <Button onClick={() => { dismiss(); }}>
           Close
-        </Button>     
+        </Button>
     );
   }, [dismiss]);
 
+  // PCore API to retrieve the data for view details
+  const getDisbursementDetailsTableData = useCallback(() => {    
+    // Set the disbursementID parameter from the selected row data 'reference' property 
+    props.disbursementDetailsDataPageProp.parameters['DisbursementID'] = props.selectedRowsData['reference'];
+    // Call the PCore API to retrieve the data    
+    getDataPageResults(props.pConnectProp, props.disbursementDetailsDataPageProp).then(data => {                  
+      setDisbursementDetails(getDisbursementDetailsDataAsRowData(data));
+    });  
+  }, [props.pConnectProp, props.disbursementDetailsDataPageProp, props.selectedRowsData]);
+
+  // Load the data before the modal is rendered
+  useEffect(() => {    
+    getDisbursementDetailsTableData();    
+  }, [props.pConnectProp, getDisbursementDetailsTableData]);
+  
   return (      
     <Modal
       actions={actions}
       autoWidth={false}
       stretch={false}
       center={false}  
-      heading='View details modal'   
+      heading='View details'   
       id='rowDetailModal'
     >
-      <Card>
-        <CardContent>
-          <form>    
-            <Flex container={{ direction: 'column', gap: 1 }}>                        
-              <Table
-                title='Breakdown of amount'
-                hoverHighlight={false}                
-                data={props.selectedRowsData?.detailsData}
-                columns={[
-                  { renderer: 'item', label: 'Item' },
-                  { renderer: 'amt', label: 'Amount' },
-                ]}
-              />      
-            </Flex>                  
-          </form>
-        </CardContent>
-      </Card>
+      <form>    
+        <Box sx={{ height: 400, width: '100%' }}>                       
+          <div style={{ height: 300, width: '100%' }}>
+            <h1>Disbursement details</h1>
+            <DataGrid
+              rows={disbursementDetails}
+              columns={columns}
+            />    
+          </div>
+        </Box>                  
+      </form>
     </Modal> 
-    
   );   
 }
 
-// Bulk update modal dialog function
+// Modal dialog function for Bulk update  
 const ShowBulkUpdateModalDialog = ( props:any) => {
-  console.log(props);    
   const { dismiss } = useModalContext();
-  // TODO below const to be revisited
+  // Modal form content id defined
   const [modalFormContent, setModalFormContent] = useState({ BulkUpdateCommentsField: '',     
     rbRowSelection: '', rbSelRows: '', rbUnSelRows: '', 
   });  
@@ -137,14 +136,11 @@ const ShowBulkUpdateModalDialog = ( props:any) => {
         rowsToBeUpdated = props.unSelectedRowsParam;
       } 
   
-      // Update the comments to all the rows
+      // Update the comments field on all the user selected rows
       rowsToBeUpdated.forEach((row:any) => {      
         const newCommentValue = commentsToUpdate;
         const rowId = row.id;
         const indexOfRow = props.disbursementTableData.findIndex((obj:any) => obj.id === rowId);
-        console.log('Row to be updated=', row);
-        console.log('New comments=', newCommentValue);
-        console.log('RowId to be updated=', rowId);
         props.updateComments(indexOfRow, newCommentValue);
       });
       props.refreshTableData(); // refresh the table data
@@ -216,28 +212,39 @@ const ShowBulkUpdateModalDialog = ( props:any) => {
 }
 
 // Main component code starts here
-export default function PreDisbursementAuthorise(props: Props) {
+export default function PreDisbursementAuthorise(props: Props) {  
+  /* 
+    TODO: paginationSizeProp value is unable to set on the component due to some warning, have to investigate more on MUI component
+          - disbursementDetailsDataPageProp props is used in the modal dialog 
+          REMOVE the eslint no-unused-vars once the above two props are sorted out
+  */
+/* eslint-disable @typescript-eslint/no-unused-vars */
   const { 
       embedDataPageProp,
       pConnectProp,
-      paginationSizeProp,
+      paginationSizeProp,      
+      disbursementDetailsDataPageProp,
   } = props;       
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
+  // Main table rows are stored in the disbursementTableData state
   const [disbursementTableData, setDisbursementTableData] = useState<GridRowsProp>([]);
+  // User selected rows are stored in the rowSelectionModel state
   const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>([]);  
+  // pConnect pageRef is maintained in the below state
   const [pageRef, setPageRef] = useState('');
-  const { create } = useModalManager(); // Modal dialog  
+  const { create } = useModalManager(); 
 
-  // TODO : Remove all console logs after development, paginationSizeProp variable had to used in the MUI grid
-  console.log(paginationSizeProp);
-
+  /* Function for PConnect API call to update the comments field for selected 
+  row Index and comments value entered by a user */
   const updateComments = async (rowIndex: number, newComment: string) => {    
-    const embedObject = `${embedDataPageProp}[${rowIndex}]`;    
-    const embedPageReference = `${pageRef}.${embedObject}`;
-    console.log("Page reference=", embedPageReference);
+    const embedObject = `${embedDataPageProp}[${rowIndex}]`;              // Create a string object with row index
+    const embedPageReference = `${pageRef}.${embedObject}`;               // pageReference to reference to current embedded object    
     try {    
-      // Use the below code as workaround to bypass the bug in the product, INC to be raised
+      // Have to set the page reference to point to the embedded data object page reference
+      // Due to bug in the product, we have to use the below code as workaround to bypass the bug in the product, INC to be raised
       pConnectProp()._pageReference = embedPageReference;
+      // Call API to update the comment field
       pConnectProp().getActionsApi().updateFieldValue('.comment', newComment, 
       {
         removePropertyFromChangedList: false,
@@ -252,13 +259,15 @@ export default function PreDisbursementAuthorise(props: Props) {
     } 
   }
 
+   /* Function for PConnect API call to update the select field for selected records by a user */
   const updateSelect = async (rowIndex: number, selectState: boolean) => {    
-    const embedObject = `${embedDataPageProp}[${rowIndex}]`;    
-    const embedPageReference = `${pageRef}.${embedObject}`;
-    console.log("Page reference=", embedPageReference);
+    const embedObject = `${embedDataPageProp}[${rowIndex}]`;          // Create a string object with row index
+    const embedPageReference = `${pageRef}.${embedObject}`;           // pageReference to reference to current embedded object 
     try {    
-      // Use the below code as workaround to bypass the bug in the product, INC to be raised
+      // Have to set the page reference to point to the embedded data object page reference
+      // Due to bug in the product, we have to use the below code as workaround to bypass the bug in the product, INC to be raised
       pConnectProp()._pageReference = embedPageReference;
+      // Call API to update the Select field
       pConnectProp().getActionsApi().updateFieldValue('.Select', selectState, 
       {
         removePropertyFromChangedList: false,
@@ -266,20 +275,24 @@ export default function PreDisbursementAuthorise(props: Props) {
       });
       // Reset page reference back to original reference
       pConnectProp()._pageReference = pageRef;
-      // Lets update the state disbursementTableData with new comments value to reflect the changes in the rendered table
+      // Lets update the state disbursementTableData with new select state value to reflect the changes in the rendered table
       disbursementTableData[rowIndex].select = selectState;       
     } catch (error) {
       console.log(error);
     } 
   }
 
-  const handleViewDetailsClick = (id: GridRowId) => () => {
-    console.log(id);    
-    const selectedRowsData = disbursementTableData.find((row) => row.id === id.toString());  
-    create(ShowViewMoreDetailModal, { ...props, selectedRowsData });
+  // Click event to view details of the table row
+  const handleViewDetailsClick = (id: GridRowId) => () => {    
+    // Get the selected row data details using the row id
+    const selectedRowsData = disbursementTableData.find((row) => row.id === id.toString());      
+    // Call the modal dialog window and pass the props and required parameters
+    create(ShowViewMoreDetailModal, { ...props, selectedRowsData }); 
   };
   
+  // Table columns definition
   const columns: GridColDef[] = [
+    // Comments field column
     {
       field: 'comment',
       headerName: 'Comments',
@@ -303,6 +316,13 @@ export default function PreDisbursementAuthorise(props: Props) {
       type: 'number',
       width: 120,
       editable: false,
+      valueFormatter: (params) => {
+        return new Intl.NumberFormat('en-EN', {
+            style: 'currency',
+            currency: 'AUD',
+            minimumFractionDigits: 2,
+        }).format(params);
+      }
     },
     { field: 'type', headerName: 'Type', width: 120, editable: false },    
     { field: 'debtor_id', headerName: 'Disbursement ID', width: 120, editable: false },    
@@ -325,11 +345,11 @@ export default function PreDisbursementAuthorise(props: Props) {
     },                       
   ];
 
-  // TODO: Check if this method is required? Fetch embedded data from the case summary content
+  // Reusable method to refresh the table data from embedded data modal
   const refreshTableData = useCallback(() => {      
     // Below method call directly reads from the embedded data page
     getDisbursementEmbeddedData(pConnectProp, embedDataPageProp).then(data => {                  
-      setDisbursementTableData(data);
+      setDisbursementTableData(data); // set the data to the state object
     });
   }, [pConnectProp, embedDataPageProp])
 
@@ -345,14 +365,17 @@ export default function PreDisbursementAuthorise(props: Props) {
     }
   }, [pConnectProp, pageRef, embedDataPageProp, refreshTableData]);
 
+  // Click event of bulk update button action
   const handleOpenBulkUpdateClick = () => {
+    // Get all selected and unselected rows
     const selectedRowsParam = getSelectedRows(rowSelectionModel, disbursementTableData);
     const unSelectedRowsParam = getUnSelectedRows(rowSelectionModel, disbursementTableData);
+    // Call the modal and pass props and other parameters required
     create(ShowBulkUpdateModalDialog, { ...props, selectedRowsParam, unSelectedRowsParam, disbursementTableData, pageRef, updateComments, refreshTableData });
   }
 
-  const updateSelectState = (selectedRowIds: any) => {
-    console.log(selectedRowIds);
+  // Function to update selected records when user selects the selectable column
+  const updateSelectState = (selectedRowIds: any) => {    
     if(selectedRowIds.length > 0) {
       // loop thru all the selectedRowIds to update the select value to true
       selectedRowIds.forEach((rowId) => { 
@@ -366,13 +389,12 @@ export default function PreDisbursementAuthorise(props: Props) {
         const indexOfRow = disbursementTableData.findIndex(obj => obj.id === row.id);
         updateSelect(indexOfRow, false); 
       })
-    }    
-    console.log("After state update=", disbursementTableData);
+    }        
   }
  
+  // Main component return method
   return (
-    <StyledPegaExtensionsDBAuthoriseWrapper>
-        <div style={{ height: 400, width: '100%', }}>
+    <StyledWrapper>        
         <StyledBox>
             <Flex container={{ direction: 'row', gap: 1, pad: 1 }}>                                       
               {/* <Button variant='secondary' onClick={refreshTableData}>Refresh embedded data</Button>  */}
@@ -391,24 +413,37 @@ export default function PreDisbursementAuthorise(props: Props) {
                 checkboxSelection 
                 disableRowSelectionOnClick
                 onCellEditStop={(params: GridCellEditStopParams, event: MuiEvent) => {
-                  const activeSelectedRow = params.row;
                   const activeSelectedRowId = params.row.id;                      
                   const activeSelectedRowComment = event.target.value;
                   const indexOfRow = disbursementTableData.findIndex(obj => obj.id === activeSelectedRowId);
-                  console.log(activeSelectedRow, activeSelectedRowId, activeSelectedRowComment, indexOfRow);
                   updateComments(indexOfRow, activeSelectedRowComment); // Update comments 
                 }}   
-                onRowSelectionModelChange={(newRowSelectionModel) => {
-                  updateSelectState(newRowSelectionModel); // Update row select status
+                onRowSelectionModelChange={(newRowSelectionModel: GridRowSelectionModel, details: GridCallbackDetails) => {                
+                  updateSelectState(newRowSelectionModel); // Update row select status 
                   setRowSelectionModel(newRowSelectionModel);
-                  console.log(rowSelectionModel);
+
+                  // Check for editable "comment" field is empty and set the error state 
+                  const userSelectedRowId = details.api.store.value.focus.cell?.id;       // Its possible sometimes at id value we might have null
+                  const checkedState = newRowSelectionModel.includes(userSelectedRowId);  // Checkbox selectable state
+                  // If checkbox is selected and "comment" field is editable mode then remove the error mode on the field
+                  if( checkedState && Object.keys(details.api.store.value.editRows)?.length > 0 ) {                    
+                    // Set the "comment" field error state to false                               
+                    details.api.store.value.editRows[userSelectedRowId].comment.error=false;
+
+                  } else {
+                    // If checkbox is un-selected and "comment" field is editable mode then set the error mode TRUE on the field
+                    console.log(userSelectedRowId, " un-checked");
+                    if( Object.keys(details.api.store.value.editRows).length > 0 && 
+                        isEmpty(details.api.store.value.editRows[userSelectedRowId].comment.value) ) {                        
+                          // Set the "comment" field error state to true                               
+                          details.api.store.value.editRows[userSelectedRowId].comment.error=true;   
+                      }
+                  }
                 }}                            
                 rowSelectionModel={rowSelectionModel}
               />
           </Box>                       
-        </StyledBox>
-        </div>
-    </StyledPegaExtensionsDBAuthoriseWrapper>
-   
+        </StyledBox>    
+    </StyledWrapper>
   )
 }

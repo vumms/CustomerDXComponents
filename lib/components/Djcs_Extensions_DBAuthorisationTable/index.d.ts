@@ -6,6 +6,7 @@ interface DjcsExtensionsDbAuthorisationTableProps extends PConnFieldProps {
     heading: string;
     embedDataPage: string;
     paginationSize: string;
+    disbursementDetailsDataPage: any;
 }
 declare const _default: (props: DjcsExtensionsDbAuthorisationTableProps) => JSX.Element;
 export default _default;
