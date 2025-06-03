@@ -35,8 +35,9 @@ export const StyledBox = styled('div')(() => ({
   '& .Mui-error': {
     backgroundColor: 'rgb(255,18,28, 0.1)',
     color: '#d32f2f',      
-  },
+  },    
 }));
+
 
 export const StyledWrapper = styled.div(() => {
   return css`
