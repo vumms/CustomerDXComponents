@@ -4,11 +4,10 @@ import {
   GridColDef,
   GridRowsProp,  
   DataGrid,  
-  GridRowSelectionModel,
   GridPreProcessEditCellProps,
   GridCellEditStopParams,
-  GridCallbackDetails,
   GridRowId,  
+  GridToolbar,
   MuiEvent,
 } from '@mui/x-data-grid';
 import { Box } from '@mui/material';
@@ -37,8 +36,9 @@ import { getDisbursementEmbeddedData,
           getSelectedRows, 
           getUnSelectedRows, 
           getDataPageResults, 
-          isEmpty,
-          getDisbursementDetailsDataAsRowData } from './utils';
+          getDisbursementDetailsDataAsRowData,
+          getPreSelectedTableDataListIds,
+        } from './utils';
 
 // Props from the config.json and any additional props to be loaded here
 type Props = {
@@ -99,12 +99,20 @@ const ShowViewMoreDetailModal = ( props ) => {
       id='rowDetailModal'
     >
       <form>    
-        <Box sx={{ height: 400, width: '100%' }}>                       
-          <div style={{ height: 300, width: '100%' }}>
+        <Box sx={{ height: 600, width: '100%' }}>                       
+          <div style={{ height: 500, width: '100%' }}>
             <h1>Disbursement details</h1>
             <DataGrid
               rows={disbursementDetails}
               columns={columns}
+              slots={{
+                toolbar: GridToolbar,
+              }}
+              slotProps={{
+                toolbar: {
+                  showQuickFilter: true,
+                },
+              }}
             />    
           </div>
         </Box>                  
@@ -230,9 +238,11 @@ export default function PreDisbursementAuthorise(props: Props) {
   // Main table rows are stored in the disbursementTableData state
   const [disbursementTableData, setDisbursementTableData] = useState<GridRowsProp>([]);
   // User selected rows are stored in the rowSelectionModel state
-  const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>([]);  
+  // TODO const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>([]);  
+  // Use below state to store the user selected rows
+  const [selectionModel, setSelectionModel] = useState([]);  
   // pConnect pageRef is maintained in the below state
-  const [pageRef, setPageRef] = useState('');
+  const [pageRef, setPageRef] = useState('');  
   const { create } = useModalManager(); 
 
   /* Function for PConnect API call to update the comments field for selected 
@@ -268,15 +278,9 @@ export default function PreDisbursementAuthorise(props: Props) {
       // Due to bug in the product, we have to use the below code as workaround to bypass the bug in the product, INC to be raised
       pConnectProp()._pageReference = embedPageReference;
       // Call API to update the Select field
-      pConnectProp().getActionsApi().updateFieldValue('.Select', selectState, 
-      {
-        removePropertyFromChangedList: false,
-        skipDirtyValidation: false
-      });
+      pConnectProp().getActionsApi().updateFieldValue('.Select', selectState);
       // Reset page reference back to original reference
-      pConnectProp()._pageReference = pageRef;
-      // Lets update the state disbursementTableData with new select state value to reflect the changes in the rendered table
-      disbursementTableData[rowIndex].select = selectState;       
+      pConnectProp()._pageReference = pageRef;      
     } catch (error) {
       console.log(error);
     } 
@@ -292,6 +296,8 @@ export default function PreDisbursementAuthorise(props: Props) {
   
   // Table columns definition
   const columns: GridColDef[] = [
+    // Below column is to show visual cue of the selected state to be retained
+    { field: 'select', headerName: 'isAccepted', type: 'boolean', width: 150 },
     // Comments field column
     {
       field: 'comment',
@@ -299,14 +305,14 @@ export default function PreDisbursementAuthorise(props: Props) {
       type: 'string',      
       width: 360,
       editable: true,
-      preProcessEditCellProps: (params: GridPreProcessEditCellProps) => {
-        // Check if the row is selected only then check for empty comments field of the row
-        if(rowSelectionModel.find((sRow) => sRow === params.id) == undefined) {
-            const hasError = params.props.value.length == 0; // Empty comments check
+      preProcessEditCellProps: (params: GridPreProcessEditCellProps) => {        
+        const hasError = params.props.value.length == 0; // Empty comments check
+        // Now check if the entered comments row is selected from selectionModel  
+        if(hasError && !(selectionModel.find((sRow) => sRow === params.id) == undefined)) { // If true, meaning its empty                  
             return { ...params.props, error: hasError };
-          }   
-      },      
-    },
+        }   
+      }        
+    },          
     { field: 'beneficiary_type', headerName: 'Beneficiary type', width: 120, editable: false },
     { field: 'beneficiary_name', headerName: 'Beneficiary name', width: 120, editable: false },
     { field: 'reference', headerName: 'Beneficiary ID', width: 120, editable: false },    
@@ -317,9 +323,9 @@ export default function PreDisbursementAuthorise(props: Props) {
       width: 120,
       editable: false,
       valueFormatter: (params) => {
-        return new Intl.NumberFormat('en-EN', {
+        return new Intl.NumberFormat('en', {
             style: 'currency',
-            currency: 'AUD',
+            currency: 'USD',        // if we use AUD current the formatted value would show A$ prefixed
             minimumFractionDigits: 2,
         }).format(params);
       }
@@ -350,6 +356,10 @@ export default function PreDisbursementAuthorise(props: Props) {
     // Below method call directly reads from the embedded data page
     getDisbursementEmbeddedData(pConnectProp, embedDataPageProp).then(data => {                  
       setDisbursementTableData(data); // set the data to the state object
+      // Set preselected table checkbox column
+      const preSelectedTableTableDataListIds = getPreSelectedTableDataListIds(data);
+      // Always set SelectionModel with preselected ids so when the page is reloaded or  it retains the checked status
+      setSelectionModel(preSelectedTableTableDataListIds); 
     });
   }, [pConnectProp, embedDataPageProp])
 
@@ -362,35 +372,55 @@ export default function PreDisbursementAuthorise(props: Props) {
     // Set the page reference only once if its empty or undefined  
     if(!pageRef) {
       setPageRef(pConnectProp().getPageReference());
+      /*  Set the tree manager context once, this is very important to generate the page instructions
+          Without this below line of code, the pageInstructions will not be generated 
+          and user entered data will not be saved to the case */
+      (window as any).PCore.getContextTreeManager().addPageListNode(
+        pConnectProp().getContextName(), 
+        pConnectProp().getPageReference(), 
+        pConnectProp().viewName, 
+        `.${embedDataPageProp}`);
     }
   }, [pConnectProp, pageRef, embedDataPageProp, refreshTableData]);
 
   // Click event of bulk update button action
   const handleOpenBulkUpdateClick = () => {
-    // Get all selected and unselected rows
-    const selectedRowsParam = getSelectedRows(rowSelectionModel, disbursementTableData);
-    const unSelectedRowsParam = getUnSelectedRows(rowSelectionModel, disbursementTableData);
+    // Get all selected and unselected rows   
+    const selectedRowsParam = getSelectedRows(selectionModel, disbursementTableData);
+    const unSelectedRowsParam = getUnSelectedRows(selectionModel, disbursementTableData);
     // Call the modal and pass props and other parameters required
     create(ShowBulkUpdateModalDialog, { ...props, selectedRowsParam, unSelectedRowsParam, disbursementTableData, pageRef, updateComments, refreshTableData });
   }
 
-  // Function to update selected records when user selects the selectable column
-  const updateSelectState = (selectedRowIds: any) => {    
-    if(selectedRowIds.length > 0) {
-      // loop thru all the selectedRowIds to update the select value to true
-      selectedRowIds.forEach((rowId) => { 
-        const indexOfRow = disbursementTableData.findIndex(obj => obj.id === rowId);
-        updateSelect(indexOfRow, true); 
-      })
-    } else {
-      // loop thru entire disbursementTable table rows and update the select value to false
-      disbursementTableData.forEach((row) => { 
-        // update select state for the row id
-        const indexOfRow = disbursementTableData.findIndex(obj => obj.id === row.id);
-        updateSelect(indexOfRow, false); 
-      })
-    }        
-  }
+   // This method is triggered from onRowSelectionModelChange 
+  const handleSelectionChange = (newSelection: any) => {
+    let selectedState = true; // defaulted
+    let indexOfSelectedRow = 0; // defaulted
+
+    // Determine if a row was selected or unselected
+    if (newSelection.length > selectionModel.length) {
+      // Row selected, select state should be set to TRUE
+      const added = newSelection.filter(id => !selectionModel.includes(id));
+      // console.log('Selected row ID(s):', added);      
+      indexOfSelectedRow = disbursementTableData.findIndex(obj => obj.id === added.toString());
+      // console.log('Index of Selected row ID(s):', indexOfSelectedRow);
+      selectedState = true;  // Set selected state to true      
+
+    } else if (newSelection.length < selectionModel.length) {
+      // Row unselected, select state should be set to FALSE
+      const removed = selectionModel.filter(id => !newSelection.includes(id));
+      // console.log('Unselected row ID(s):', removed);
+      indexOfSelectedRow = disbursementTableData.findIndex(obj => obj.id === removed.toString());
+      // console.log('Index of Unselected row ID(s):', indexOfSelectedRow);
+      selectedState = false;  // Set selected state to false
+    }
+    console.log('Selected state: ', selectedState, ' Index of row: ', indexOfSelectedRow);
+    // Call function to update case embedded data using PConnect API and construct page instructions
+    updateSelect(indexOfSelectedRow, selectedState);
+    // Lets update the disbursementTableData
+    disbursementTableData[indexOfSelectedRow].select = selectedState;  
+    setSelectionModel(newSelection);
+  };
  
   // Main component return method
   return (
@@ -417,30 +447,9 @@ export default function PreDisbursementAuthorise(props: Props) {
                   const activeSelectedRowComment = event.target.value;
                   const indexOfRow = disbursementTableData.findIndex(obj => obj.id === activeSelectedRowId);
                   updateComments(indexOfRow, activeSelectedRowComment); // Update comments 
-                }}   
-                onRowSelectionModelChange={(newRowSelectionModel: GridRowSelectionModel, details: GridCallbackDetails) => {                
-                  updateSelectState(newRowSelectionModel); // Update row select status 
-                  setRowSelectionModel(newRowSelectionModel);
-
-                  // Check for editable "comment" field is empty and set the error state 
-                  const userSelectedRowId = details.api.store.value.focus.cell?.id;       // Its possible sometimes at id value we might have null
-                  const checkedState = newRowSelectionModel.includes(userSelectedRowId);  // Checkbox selectable state
-                  // If checkbox is selected and "comment" field is editable mode then remove the error mode on the field
-                  if( checkedState && Object.keys(details.api.store.value.editRows)?.length > 0 ) {                    
-                    // Set the "comment" field error state to false                               
-                    details.api.store.value.editRows[userSelectedRowId].comment.error=false;
-
-                  } else {
-                    // If checkbox is un-selected and "comment" field is editable mode then set the error mode TRUE on the field
-                    console.log(userSelectedRowId, " un-checked");
-                    if( Object.keys(details.api.store.value.editRows).length > 0 && 
-                        isEmpty(details.api.store.value.editRows[userSelectedRowId].comment.value) ) {                        
-                          // Set the "comment" field error state to true                               
-                          details.api.store.value.editRows[userSelectedRowId].comment.error=true;   
-                      }
-                  }
-                }}                            
-                rowSelectionModel={rowSelectionModel}
+                }} 
+                rowSelectionModel={selectionModel}
+                onRowSelectionModelChange={handleSelectionChange}                     
               />
           </Box>                       
         </StyledBox>    
