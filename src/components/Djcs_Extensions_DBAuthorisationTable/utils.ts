@@ -8,7 +8,6 @@ export const getDataPageResults = async (pConn: any, paramDataPage: any) => {
     const parameters = paramDataPage?.parameters?paramDataPage.parameters:{};
 
     try {
-        // const getData = await PCore.getDataPageUtils().getDataAsync(paramDataPage, context);
         const getData = await PCore.getDataPageUtils().getDataAsync(dataPage, context, parameters);
         if (getData.status === 200 || getData.data.length > 0) {
             return getData.data;
@@ -57,8 +56,7 @@ export const getDisbursementEmbeddedData = async (paramPConn: any, paramEmbedNam
         const rowArray: any = [];        
         arrayOfEmbeddedList?.map((listitem: any) => ( 
             rowArray.push({                                
-                // id: listitem['reference'],  // reference is Disbursement Id, used a unique ID for each rows
-                id: randomId(),
+                id: listitem['pyGUID'],  // reference is Disbursement Id, used a unique ID for each rows
                 batchId: listitem['batch_id'],
                 beneficiary_type: listitem['disbursement_type'],
                 beneficiary_name: listitem['payee_name'],
@@ -96,6 +94,18 @@ export const getUnSelectedRows = (rowSelectionModel: any, disbursementTableData:
     const excludeList = new Set(rowSelectionModel);
     const unSelectedRowsData = disbursementTableData.filter((e:any) => !excludeList.has(e.id));  
     return (unSelectedRowsData);
+}
+
+/* Function to lookup select state TRUE to return list of pre-selected rows ids ONLY */
+export const getPreSelectedTableDataListIds = (disbursementTableData: any) => {        
+    const preSelectedRowsIds = disbursementTableData.filter((row: any) => row.select === true).map((row: any) => row.id);
+    return (preSelectedRowsIds);
+}
+
+/* Function to lookup select state TRUE to return list of pre-selected rows */
+export const getPreSelectedTableDataList = (disbursementTableData: any) => {        
+    const preSelectedRows = disbursementTableData.filter((row: any) => row.select === true).map((row: any) => row);
+    return (preSelectedRows);
 }
 
 /* Function to read result returned from embedded disbursement list and put them in a array for Table component to render */
